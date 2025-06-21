@@ -411,11 +411,7 @@
                     <div class="option-content">
                         <div class="ssml-export">
                             <h4>🎤 Azure Speech Service</h4>
-                            <p>Export each language page as SSML text files compatible with Microsoft Azure Speech Services. The first page (English) will be included automatically.</p>
-                        </div>
-                        <div class="checkbox-option">
-                            <input type="checkbox" id="enableSSMLExport">
-                            <label for="enableSSMLExport">Enable SSML export after translation</label>
+                            <p>Export each page of the document as SSML text files in a ZIP archive. The export button analyzes all pages in the document - the first page is treated as English (EN), and subsequent pages are detected by their language markers.</p>
                         </div>
                     </div>
                 </div>
@@ -425,8 +421,8 @@
                 🚀 Start Translation
             </button>
             
-            <button class="export-btn" onclick="exportSSMLFiles()" id="exportBtn" style="display: none;">
-                📁 Export SSML Files
+            <button class="export-btn" onclick="exportSSMLFiles()" id="exportBtn">
+                📁 Export SSML Files (ZIP)
             </button>
 
             <div class="progress-container" id="progressContainer">
@@ -443,25 +439,26 @@
     <script>
         // Languages with ISO 639-1 codes and Azure Speech Service voices
         const languages = {
-            'fr': { name: 'French', ssmlLang: 'fr-FR', voice: 'fr-FR-DeniseNeural' },
-            'de': { name: 'German', ssmlLang: 'de-DE', voice: 'de-DE-KatjaNeural' },
-            'it': { name: 'Italian', ssmlLang: 'it-IT', voice: 'it-IT-ElsaNeural' },
-            'es': { name: 'Spanish', ssmlLang: 'es-ES', voice: 'es-ES-ElviraNeural' },
-            'pt': { name: 'Portuguese', ssmlLang: 'pt-PT', voice: 'pt-PT-RaquelNeural' },
-            'ru': { name: 'Russian', ssmlLang: 'ru-RU', voice: 'ru-RU-SvetlanaNeural' },
-            'el': { name: 'Greek', ssmlLang: 'el-GR', voice: 'el-GR-AthinaNeural' },
-            'hu': { name: 'Hungarian', ssmlLang: 'hu-HU', voice: 'hu-HU-NoemiNeural' },
-            'pl': { name: 'Polish', ssmlLang: 'pl-PL', voice: 'pl-PL-ZofiaNeural' },
-            'fa': { name: 'Farsi', ssmlLang: 'fa-IR', voice: 'fa-IR-DilaraNeural' },
-            'ar': { name: 'Arabic', ssmlLang: 'ar-SA', voice: 'ar-SA-ZariyahNeural' },
-            'tr': { name: 'Turkish', ssmlLang: 'tr-TR', voice: 'tr-TR-EmelNeural' }
+            'fr': { name: 'French', iso: 'FR', ssmlLang: 'fr-FR', voice: 'fr-FR-LucienMultilingualNeural' },
+            'de': { name: 'German', iso: 'DE', ssmlLang: 'de-DE', voice: 'de-DE-SeraphinaMultilingualNeural' },
+            'it': { name: 'Italian', iso: 'IT', ssmlLang: 'it-IT', voice: 'it-IT-GiuseppeNeural' },
+            'es': { name: 'Spanish', iso: 'ES', ssmlLang: 'es-ES', voice: 'es-ES-AlvaroNeural' },
+            'pt': { name: 'Portuguese', iso: 'PT', ssmlLang: 'pt-PT', voice: 'pt-PT-DuarteNeural' },
+            'ru': { name: 'Russian', iso: 'RU', ssmlLang: 'ru-RU', voice: 'ru-RU-DmitryNeural' },
+            'el': { name: 'Greek', iso: 'EL', ssmlLang: 'el-GR', voice: 'el-GR-NestorNeural' },
+            'hu': { name: 'Hungarian', iso: 'HU', ssmlLang: 'hu-HU', voice: 'hu-HU-TamasNeural' },
+            'pl': { name: 'Polish', iso: 'PL', ssmlLang: 'pl-PL', voice: 'pl-PL-MarekNeural' },
+            'fa': { name: 'Farsi', iso: 'FA', ssmlLang: 'fa-IR', voice: 'fa-IR-FaridNeural' },
+            'ar': { name: 'Arabic', iso: 'AR', ssmlLang: 'ar-SA', voice: 'ar-SA-HamedNeural' },
+            'tr': { name: 'Turkish', iso: 'TR', ssmlLang: 'tr-TR', voice: 'tr-TR-AhmetNeural' }
         };
 
         // English language configuration
         const englishConfig = {
             name: 'English',
+            iso: 'EN',
             ssmlLang: 'en-US',
-            voice: 'en-US-JennyNeural'
+            voice: 'en-US-BrianMultilingualNeural'
         };
 
         // Store translated content for SSML export
@@ -516,9 +513,14 @@
             return text;
         }
 
-        // Generate SSML content
+        // Generate SSML content in the requested format
         function generateSSML(text, langCode) {
-            const config = languages[langCode] || englishConfig;
+            const config = langCode === 'en' ? englishConfig : languages[langCode];
+            if (!config) {
+                console.error(`Configuration not found for language: ${langCode}`);
+                return `<!-- Error: Configuration not found for ${langCode} -->`;
+            }
+            
             const cleanText = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
@@ -526,15 +528,7 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&apos;');
 
-            return `<?xml version="1.0" encoding="UTF-8"?>
-<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"
-       xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${config.ssmlLang}">
-    <voice name="${config.voice}">
-        <prosody rate="medium" pitch="medium">
-            ${cleanText}
-        </prosody>
-    </voice>
-</speak>`;
+            return `<?xml version="1.0" encoding="UTF-8"?><speak xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xmlns:emo="http://www.w3.org/2009/10/emotionml" version="1.0" xml:lang="${config.ssmlLang}"><voice name="${config.voice}"><prosody rate="+10.00%">${cleanText}</prosody></voice></speak>`;
         }
 
         // Download file function
@@ -550,46 +544,104 @@
             URL.revokeObjectURL(url);
         }
 
-        // Export SSML files
+        // Export SSML files from document pages
         async function exportSSMLFiles() {
-            if (Object.keys(translatedContent).length === 0) {
-                showStatus('No translated content available for export. Please run translation first.', 'error');
-                return;
-            }
-
             const button = document.getElementById('exportBtn');
             button.disabled = true;
-            button.textContent = '📁 Exporting...';
+            button.textContent = '📁 Generating ZIP...';
 
             try {
-                // Get original English content
+                // Load JSZip library
+                if (!window.JSZip) {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+                    document.head.appendChild(script);
+                    
+                    await new Promise((resolve, reject) => {
+                        script.onload = resolve;
+                        script.onerror = reject;
+                    });
+                }
+
+                const zip = new JSZip();
+                const extractedPages = [];
+
                 await Word.run(async (context) => {
+                    // Get all content from the document
                     const body = context.document.body;
                     body.load("text");
                     await context.sync();
                     
-                    const originalText = body.text;
-                    const processedText = processTextForTranslation(originalText, 'en');
+                    const fullText = body.text;
                     
-                    // Export English SSML
-                    const englishSSML = generateSSML(processedText, 'en');
-                    downloadFile(englishSSML, 'english.ssml', 'application/xml');
+                    // Split content by language sections
+                    const pages = [];
                     
-                    // Export translated content SSML files
-                    for (const [langCode, content] of Object.entries(translatedContent)) {
-                        const ssmlContent = generateSSML(content, langCode);
-                        const filename = `${languages[langCode].name.toLowerCase()}.ssml`;
-                        downloadFile(ssmlContent, filename, 'application/xml');
+                    // First, extract English content (before any language marker)
+                    const firstLanguageMatch = fullText.match(/\n\n=== [A-Z]+ ===\n\n/);
+                    if (firstLanguageMatch) {
+                        const englishContent = fullText.substring(0, firstLanguageMatch.index).trim();
+                        if (englishContent) {
+                            const processedEnglish = processTextForTranslation(englishContent, 'en');
+                            pages.push({ langCode: 'en', content: processedEnglish });
+                        }
+                    } else {
+                        // If no language sections found, treat entire content as English
+                        const processedEnglish = processTextForTranslation(fullText, 'en');
+                        pages.push({ langCode: 'en', content: processedEnglish });
                     }
                     
-                    showStatus(`SSML files exported successfully! ${Object.keys(translatedContent).length + 1} files downloaded.`, 'success');
+                    // Extract content for each language section
+                    const languageMatches = [...fullText.matchAll(/\n\n=== ([A-Z]+) ===\n\n([\s\S]*?)(?=\n\n=== [A-Z]+ ===\n\n|$)/g)];
+                    
+                    for (const match of languageMatches) {
+                        const langName = match[1];
+                        const content = match[2].trim();
+                        
+                        // Find language code by name
+                        const langCode = Object.keys(languages).find(code => 
+                            languages[code].name.toUpperCase() === langName
+                        );
+                        
+                        if (langCode && content) {
+                            pages.push({ langCode, content });
+                        }
+                    }
+                    
+                    // Generate SSML files and add to ZIP
+                    for (const page of pages) {
+                        const ssmlContent = generateSSML(page.content, page.langCode);
+                        const config = page.langCode === 'en' ? englishConfig : languages[page.langCode];
+                        const filename = `${config.iso.toLowerCase()}.txt`;
+                        
+                        zip.file(filename, ssmlContent);
+                        extractedPages.push(config.iso);
+                    }
+                    
+                    if (pages.length === 0) {
+                        throw new Error('No content found to export. Please ensure the document has content.');
+                    }
+                    
+                    // Generate and download ZIP file
+                    const zipBlob = await zip.generateAsync({ type: 'blob' });
+                    const url = URL.createObjectURL(zipBlob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'ssml_files.zip';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    showStatus(`SSML ZIP exported successfully! ${pages.length} files: ${extractedPages.join(', ')}`, 'success');
                 });
+                
             } catch (error) {
                 console.error('Export error:', error);
                 showStatus(`Export error: ${error.message}`, 'error');
             } finally {
                 button.disabled = false;
-                button.textContent = '📁 Export SSML Files';
+                button.textContent = '📁 Export SSML Files (ZIP)';
             }
         }
 
@@ -717,10 +769,7 @@
                         showProgress(false);
                         showStatus('Translation successful! The document has been updated.', 'success');
                         
-                        // Show export button if SSML export is enabled
-                        if (document.getElementById('enableSSMLExport').checked) {
-                            document.getElementById('exportBtn').style.display = 'block';
-                        }
+                        // Remove the automatic export button show since it's always visible now
                     }, 1000);
                 });
 
@@ -744,8 +793,8 @@
                 context.document.body.insertBreak(Word.BreakType.page, Word.InsertLocation.end);
             }
 
-            // Insert language title
-            const titleRange = context.document.body.insertText(`\n\n=== ${langName.toUpperCase()} ===\n\n`, Word.InsertLocation.end);
+            // Insert language title with ISO code only
+            const titleRange = context.document.body.insertText(`\n\n=== ${languages[langCode].iso} ===\n\n`, Word.InsertLocation.end);
             titleRange.font.bold = true;
             titleRange.font.size = 16;
             titleRange.font.color = '#2196F3';
