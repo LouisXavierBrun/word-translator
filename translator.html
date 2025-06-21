@@ -814,4 +814,68 @@
                         }
                     }
                 } else {
-                    console.log('ℹ
+                    console.log('ℹ️ No Azure API key provided, using free service');
+                }
+            } catch (error) {
+                console.log('❌ Azure Translator failed:', error.message);
+                if (userApiKey) {
+                    showApiStatus('❌ Connection error to Azure Translator', 'error');
+                }
+            }
+            
+            try {
+                // Fallback: MyMemory service (free)
+                console.log('🟡 Using MyMemory fallback service...');
+                
+                const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`);
+                const data = await response.json();
+                
+                if (data.responseData && data.responseData.translatedText) {
+                    console.log('✅ MyMemory success');
+                    if (!userApiKey) {
+                        showApiStatus('ℹ️ Using free translation service. Add Azure key for better quality.', 'info');
+                    }
+                    
+                    // Apply Euronews URL adaptation to translated text
+                    const translatedText = adaptEuronewsUrls(data.responseData.translatedText, targetLang);
+                    return translatedText;
+                } else {
+                    throw new Error('MyMemory service unavailable');
+                }
+            } catch (error) {
+                console.log('❌ MyMemory failed:', error.message);
+            }
+            
+            // Last resort: simulated text
+            console.log('🔴 Using fallback text simulation');
+            return `[${languages[targetLang].name} Translation] ${text}`;
+        }
+
+        function getSelectedLanguages() {
+            const checkboxes = document.querySelectorAll('.language-option input[type="checkbox"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        function showProgress(show) {
+            const container = document.getElementById('progressContainer');
+            container.style.display = show ? 'block' : 'none';
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressText').textContent = text;
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
