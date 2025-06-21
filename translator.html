@@ -465,6 +465,49 @@
         // Store translated content for SSML export
         let translatedContent = {};
 
+        // Generate complete SSML document with all languages
+        function generateCompleteSSML(documentSections) {
+            let ssmlContent = '<?xml version="1.0" encoding="UTF-8"?><speak xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xmlns:emo="http://www.w3.org/2009/10/emotionml" version="1.0" xml:lang="en-GB">';
+            
+            for (let i = 0; i < documentSections.length; i++) {
+                const section = documentSections[i];
+                const cleanText = section.content
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&apos;');
+                
+                // Add language announcement in English (except for the first English section)
+                if (i > 0) {
+                    const langConfig = section.langCode === 'en' ? englishVoice : languages[section.langCode];
+                    const announcement = `Now in ${langConfig.name}`;
+                    
+                    if (englishVoice.prosody) {
+                        ssmlContent += `<voice name="${englishVoice.voice}"><prosody ${englishVoice.prosody}>${announcement}</prosody></voice><break time="1s"/>`;
+                    } else {
+                        ssmlContent += `<voice name="${englishVoice.voice}">${announcement}</voice><break time="1s"/>`;
+                    }
+                }
+                
+                // Add the content in the target language
+                const config = section.langCode === 'en' ? englishVoice : languages[section.langCode];
+                if (config.prosody) {
+                    ssmlContent += `<voice name="${config.voice}"><prosody ${config.prosody}>${cleanText}</prosody></voice>`;
+                } else {
+                    ssmlContent += `<voice name="${config.voice}">${cleanText}</voice>`;
+                }
+                
+                // Add break between sections
+                if (i < documentSections.length - 1) {
+                    ssmlContent += '<break time="2s"/>';
+                }
+            }
+            
+            ssmlContent += '</speak>';
+            return ssmlContent;
+        }
+
         // Euronews URL mapping
         const euronewsUrls = {
             'en': 'euronews.com',
