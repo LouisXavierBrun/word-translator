@@ -437,20 +437,20 @@
     </div>
 
     <script>
-        // Languages with ISO 639-1 codes and Azure Speech Service voices
+        // Languages with ISO 639-1 codes and Azure Speech Service voices (male and female)
         const languages = {
-            'fr': { name: 'French', iso: 'FR', ssmlLang: 'fr-FR', voice: 'fr-FR-LucienMultilingualNeural' },
-            'de': { name: 'German', iso: 'DE', ssmlLang: 'de-DE', voice: 'de-DE-SeraphinaMultilingualNeural' },
-            'it': { name: 'Italian', iso: 'IT', ssmlLang: 'it-IT', voice: 'it-IT-GiuseppeNeural' },
-            'es': { name: 'Spanish', iso: 'ES', ssmlLang: 'es-ES', voice: 'es-ES-AlvaroNeural' },
-            'pt': { name: 'Portuguese', iso: 'PT', ssmlLang: 'pt-PT', voice: 'pt-PT-DuarteNeural' },
-            'ru': { name: 'Russian', iso: 'RU', ssmlLang: 'ru-RU', voice: 'ru-RU-DmitryNeural' },
-            'el': { name: 'Greek', iso: 'EL', ssmlLang: 'el-GR', voice: 'el-GR-NestorNeural' },
-            'hu': { name: 'Hungarian', iso: 'HU', ssmlLang: 'hu-HU', voice: 'hu-HU-TamasNeural' },
-            'pl': { name: 'Polish', iso: 'PL', ssmlLang: 'pl-PL', voice: 'pl-PL-MarekNeural' },
-            'fa': { name: 'Farsi', iso: 'FA', ssmlLang: 'fa-IR', voice: 'fa-IR-FaridNeural' },
-            'ar': { name: 'Arabic', iso: 'AR', ssmlLang: 'ar-SA', voice: 'ar-SA-HamedNeural' },
-            'tr': { name: 'Turkish', iso: 'TR', ssmlLang: 'tr-TR', voice: 'tr-TR-AhmetNeural' }
+            'fr': { name: 'French', iso: 'FR', ssmlLang: 'fr-FR', voiceMale: 'fr-FR-LucienMultilingualNeural', voiceFemale: 'fr-FR-DeniseNeural' },
+            'de': { name: 'German', iso: 'DE', ssmlLang: 'de-DE', voiceMale: 'de-DE-ConradNeural', voiceFemale: 'de-DE-SeraphinaMultilingualNeural' },
+            'it': { name: 'Italian', iso: 'IT', ssmlLang: 'it-IT', voiceMale: 'it-IT-GiuseppeNeural', voiceFemale: 'it-IT-ElsaNeural' },
+            'es': { name: 'Spanish', iso: 'ES', ssmlLang: 'es-ES', voiceMale: 'es-ES-AlvaroNeural', voiceFemale: 'es-ES-ElviraNeural' },
+            'pt': { name: 'Portuguese', iso: 'PT', ssmlLang: 'pt-PT', voiceMale: 'pt-PT-DuarteNeural', voiceFemale: 'pt-PT-RaquelNeural' },
+            'ru': { name: 'Russian', iso: 'RU', ssmlLang: 'ru-RU', voiceMale: 'ru-RU-DmitryNeural', voiceFemale: 'ru-RU-SvetlanaNeural' },
+            'el': { name: 'Greek', iso: 'EL', ssmlLang: 'el-GR', voiceMale: 'el-GR-NestorNeural', voiceFemale: 'el-GR-AthinaNeural' },
+            'hu': { name: 'Hungarian', iso: 'HU', ssmlLang: 'hu-HU', voiceMale: 'hu-HU-TamasNeural', voiceFemale: 'hu-HU-NoemiNeural' },
+            'pl': { name: 'Polish', iso: 'PL', ssmlLang: 'pl-PL', voiceMale: 'pl-PL-MarekNeural', voiceFemale: 'pl-PL-ZofiaNeural' },
+            'fa': { name: 'Farsi', iso: 'FA', ssmlLang: 'fa-IR', voiceMale: 'fa-IR-FaridNeural', voiceFemale: 'fa-IR-DilaraNeural' },
+            'ar': { name: 'Arabic', iso: 'AR', ssmlLang: 'ar-SA', voiceMale: 'ar-SA-HamedNeural', voiceFemale: 'ar-SA-ZariyahNeural' },
+            'tr': { name: 'Turkish', iso: 'TR', ssmlLang: 'tr-TR', voiceMale: 'tr-TR-AhmetNeural', voiceFemale: 'tr-TR-EmelNeural' }
         };
 
         // English language configuration
@@ -458,7 +458,8 @@
             name: 'English',
             iso: 'EN',
             ssmlLang: 'en-US',
-            voice: 'en-US-BrianMultilingualNeural'
+            voiceMale: 'en-US-BrianMultilingualNeural',
+            voiceFemale: 'en-US-JennyMultilingualNeural'
         };
 
         // Store translated content for SSML export
@@ -513,7 +514,7 @@
             return text;
         }
 
-        // Generate SSML content in the requested format
+        // Generate SSML content with male and female voices
         function generateSSML(text, langCode) {
             const config = langCode === 'en' ? englishConfig : languages[langCode];
             if (!config) {
@@ -528,7 +529,7 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&apos;');
 
-            return `<?xml version="1.0" encoding="UTF-8"?><speak xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xmlns:emo="http://www.w3.org/2009/10/emotionml" version="1.0" xml:lang="${config.ssmlLang}"><voice name="${config.voice}"><prosody rate="+10.00%">${cleanText}</prosody></voice></speak>`;
+            return `<?xml version="1.0" encoding="UTF-8"?><speak xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xmlns:emo="http://www.w3.org/2009/10/emotionml" version="1.0" xml:lang="${config.ssmlLang}"><voice name="${config.voiceMale}"><prosody rate="+10.00%">${cleanText}</prosody></voice><break time="1s"/><voice name="${config.voiceFemale}"><prosody rate="+10.00%">${cleanText}</prosody></voice></speak>`;
         }
 
         // Download file function
@@ -573,6 +574,7 @@
                     await context.sync();
                     
                     const fullText = body.text;
+                    console.log('Full document text:', fullText);
                     
                     // Split content by language sections
                     const pages = [];
@@ -584,29 +586,44 @@
                         if (englishContent) {
                             const processedEnglish = processTextForTranslation(englishContent, 'en');
                             pages.push({ langCode: 'en', content: processedEnglish });
+                            console.log('English content found:', processedEnglish.substring(0, 100));
                         }
                     } else {
                         // If no language sections found, treat entire content as English
                         const processedEnglish = processTextForTranslation(fullText, 'en');
                         pages.push({ langCode: 'en', content: processedEnglish });
+                        console.log('No language markers found, treating as English:', processedEnglish.substring(0, 100));
                     }
                     
                     // Extract content for each language section
                     const languageMatches = [...fullText.matchAll(/\n\n=== ([A-Z]+) ===\n\n([\s\S]*?)(?=\n\n=== [A-Z]+ ===\n\n|$)/g)];
+                    console.log('Language matches found:', languageMatches.length);
                     
                     for (const match of languageMatches) {
-                        const langName = match[1];
+                        const isoCode = match[1]; // This is the ISO code like "FR", "DE", etc.
                         const content = match[2].trim();
                         
-                        // Find language code by name
-                        const langCode = Object.keys(languages).find(code => 
-                            languages[code].name.toUpperCase() === langName
-                        );
+                        console.log(`Processing section: ${isoCode}, content length: ${content.length}`);
+                        
+                        // Find language code by ISO code
+                        let langCode = null;
+                        if (isoCode === 'EN') {
+                            langCode = 'en';
+                        } else {
+                            langCode = Object.keys(languages).find(code => 
+                                languages[code].iso === isoCode
+                            );
+                        }
                         
                         if (langCode && content) {
                             pages.push({ langCode, content });
+                            console.log(`Added page for ${isoCode} (${langCode}):`, content.substring(0, 100));
+                        } else {
+                            console.warn(`Could not find language configuration for ISO code: ${isoCode}`);
                         }
                     }
+                    
+                    console.log('Total pages to export:', pages.length);
                     
                     // Generate SSML files and add to ZIP
                     for (const page of pages) {
@@ -616,6 +633,7 @@
                         
                         zip.file(filename, ssmlContent);
                         extractedPages.push(config.iso);
+                        console.log(`Generated SSML for ${config.iso}, filename: ${filename}`);
                     }
                     
                     if (pages.length === 0) {
