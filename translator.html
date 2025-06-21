@@ -646,35 +646,83 @@
                         
                         const fullText = body.text;
                         console.log('Full document text length:', fullText.length);
-                        console.log('Document content preview:', fullText.substring(0, 300));
+                        console.log('Document content preview:', fullText.substring(0, 500));
                         
-                        // Check if document has language markers
-                        const hasLanguageMarkers = /=== [A-Z]+ ===/g.test(fullText);
+                        // Check if document has language markers (more flexible regex)
+                        const languageMarkerRegex = /=== ([A-Z]+) ===/g;
+                        const hasLanguageMarkers = languageMarkerRegex.test(fullText);
                         console.log('Document has language markers:', hasLanguageMarkers);
                         
                         if (hasLanguageMarkers) {
-                            // Split by language markers
-                            const sections = fullText.split(/(?=\n\n=== [A-Z]+ ===\n\n|\n=== [A-Z]+ ===\n|^=== [A-Z]+ ===)/);
-                            console.log('Found sections:', sections.length);
+                            // Find all language markers and their positions
+                            const markers = [];
+                            const markerRegex = /=== ([A-Z]+) ===/g;
+                            let match;
                             
-                            for (let i = 0; i < sections.length; i++) {
-                                const section = sections[i].trim();
-                                if (!section) continue;
-                                
-                                console.log(`Processing section ${i + 1}:`, section.substring(0, 100));
-                                
-                                // Check for language marker
-                                const langMatch = section.match(/^=== ([A-Z]+) ===/);
-                                if (langMatch) {
-                                    const isoCode = langMatch[1];
-                                    const content = section.replace(/^=== [A-Z]+ ===\s*/, '').trim();
+                            while ((match = markerRegex.exec(fullText)) !== null) {
+                                markers.push({
+                                    iso: match[1],
+                                    position: match.index,
+                                    fullMatch: match[0]
+                                });
+                                console.log(`Found marker: ${match[1]} at position ${match.index}`);
+                            }
+                            
+                            console.log('Total markers found:', markers.length);
+                            
+                            // Extract English content (everything before first marker)
+                            if (markers.length > 0) {
+                                const englishContent = fullText.substring(0, markers[0].position).trim();
+                                if (englishContent) {
+                                    const processedContent = processTextForTranslation(englishContent, 'en');
+                                    const filename = `${englishConfig.iso.toLowerCase()}.txt`;
+                                    const ssmlContent = generateSSML(processedContent, 'en');
                                     
+                                    zip.file(filename, ssmlContent);
+                                    extractedPages.push(englishConfig.iso);
+                                    console.log(`Added English file: ${filename}, content length: ${processedContent.length}`);
+                                }
+                            } else {
+                                // No markers found, but we thought there were - treat as English
+                                const processedContent = processTextForTranslation(fullText, 'en');
+                                const filename = `${englishConfig.iso.toLowerCase()}.txt`;
+                                const ssmlContent = generateSSML(processedContent, 'en');
+                                
+                                zip.file(filename, ssmlContent);
+                                extractedPages.push(englishConfig.iso);
+                                console.log(`Added single English file: ${filename}`);
+                            }
+                            
+                            // Extract content for each language
+                            for (let i = 0; i < markers.length; i++) {
+                                const currentMarker = markers[i];
+                                const nextMarker = markers[i + 1];
+                                
+                                // Calculate start position (after the marker line)
+                                const markerEndPos = currentMarker.position + currentMarker.fullMatch.length;
+                                let startPos = markerEndPos;
+                                
+                                // Skip any whitespace or newlines after the marker
+                                while (startPos < fullText.length && /\s/.test(fullText[startPos])) {
+                                    startPos++;
+                                }
+                                
+                                // Calculate end position
+                                const endPos = nextMarker ? nextMarker.position : fullText.length;
+                                
+                                // Extract content
+                                const content = fullText.substring(startPos, endPos).trim();
+                                
+                                console.log(`Processing ${currentMarker.iso}: start=${startPos}, end=${endPos}, length=${content.length}`);
+                                console.log(`Content preview: ${content.substring(0, 100)}`);
+                                
+                                if (content) {
                                     let langCode = 'en';
                                     let langConfig = englishConfig;
                                     
-                                    if (isoCode !== 'EN') {
+                                    if (currentMarker.iso !== 'EN') {
                                         const foundLangCode = Object.keys(languages).find(code => 
-                                            languages[code].iso === isoCode
+                                            languages[code].iso === currentMarker.iso
                                         );
                                         if (foundLangCode) {
                                             langCode = foundLangCode;
@@ -682,23 +730,14 @@
                                         }
                                     }
                                     
-                                    if (content) {
-                                        const filename = `${langConfig.iso.toLowerCase()}.txt`;
-                                        const ssmlContent = generateSSML(content, langCode);
-                                        
-                                        zip.file(filename, ssmlContent);
-                                        extractedPages.push(langConfig.iso);
-                                        console.log(`Added file: ${filename} for language ${isoCode}`);
-                                    }
-                                } else if (i === 0) {
-                                    // First section without marker = English
-                                    const processedContent = processTextForTranslation(section, 'en');
-                                    const filename = `${englishConfig.iso.toLowerCase()}.txt`;
-                                    const ssmlContent = generateSSML(processedContent, 'en');
+                                    const filename = `${langConfig.iso.toLowerCase()}.txt`;
+                                    const ssmlContent = generateSSML(content, langCode);
                                     
                                     zip.file(filename, ssmlContent);
-                                    extractedPages.push(englishConfig.iso);
-                                    console.log(`Added English file: ${filename}`);
+                                    extractedPages.push(langConfig.iso);
+                                    console.log(`Added file: ${filename} for language ${currentMarker.iso}`);
+                                } else {
+                                    console.warn(`No content found for language ${currentMarker.iso}`);
                                 }
                             }
                         } else {
