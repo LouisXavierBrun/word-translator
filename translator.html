@@ -550,7 +550,7 @@
         async function exportSSMLFiles() {
             const button = document.getElementById('exportBtn');
             button.disabled = true;
-            button.textContent = '📁 Generating ZIP...';
+            button.textContent = '📁 Analyzing document...';
 
             try {
                 // Load JSZip library
@@ -569,82 +569,167 @@
                 const extractedPages = [];
 
                 await Word.run(async (context) => {
-                    // Get all content from the document
-                    const body = context.document.body;
-                    body.load("text");
-                    await context.sync();
-                    
-                    const fullText = body.text;
-                    console.log('Full document text length:', fullText.length);
-                    console.log('Document preview:', fullText.substring(0, 200));
-                    
-                    // Split content by language sections
-                    const pages = [];
-                    
-                    // Split document by page breaks or language markers
-                    const sections = fullText.split(/\n\n=== ([A-Z]+) ===\n\n/);
-                    console.log('Split sections count:', sections.length);
-                    
-                    // First section is always English (before any language marker)
-                    if (sections[0] && sections[0].trim()) {
-                        const englishContent = processTextForTranslation(sections[0].trim(), 'en');
-                        if (englishContent) {
-                            pages.push({ langCode: 'en', content: englishContent });
-                            console.log('English page added, length:', englishContent.length);
-                        }
-                    }
-                    
-                    // Process remaining sections (language code + content pairs)
-                    for (let i = 1; i < sections.length; i += 2) {
-                        if (i + 1 < sections.length) {
-                            const isoCode = sections[i]; // Language ISO code like "FR", "DE"
-                            const content = sections[i + 1].trim(); // Content for that language
-                            
-                            console.log(`Processing ${isoCode}, content length: ${content.length}`);
-                            
-                            if (content) {
-                                // Find language code by ISO
-                                let langCode = null;
-                                if (isoCode === 'EN') {
-                                    langCode = 'en';
-                                } else {
-                                    langCode = Object.keys(languages).find(code => 
-                                        languages[code].iso === isoCode
-                                    );
-                                }
+                    // Try to get document by pages first
+                    try {
+                        // Load all pages in the document
+                        const pages = context.document.sections;
+                        pages.load("body");
+                        await context.sync();
+                        
+                        console.log('Document has', pages.items.length, 'sections');
+                        
+                        // If we have multiple sections, try to extract by pages
+                        if (pages.items.length > 1) {
+                            for (let i = 0; i < pages.items.length; i++) {
+                                const pageBody = pages.items[i].body;
+                                pageBody.load("text");
+                                await context.sync();
                                 
-                                if (langCode) {
-                                    pages.push({ langCode, content });
-                                    console.log(`Added ${isoCode} page (${langCode})`);
-                                } else {
-                                    console.warn(`Unknown ISO code: ${isoCode}`);
+                                const pageText = pageBody.text.trim();
+                                console.log(`Page ${i + 1} text length:`, pageText.length);
+                                console.log(`Page ${i + 1} preview:`, pageText.substring(0, 100));
+                                
+                                if (pageText) {
+                                    // Determine language for this page
+                                    let langCode = 'en';
+                                    let langConfig = englishConfig;
+                                    
+                                    // Check if page starts with a language marker
+                                    const langMatch = pageText.match(/^=== ([A-Z]+) ===/);
+                                    if (langMatch) {
+                                        const isoCode = langMatch[1];
+                                        console.log(`Found language marker: ${isoCode}`);
+                                        
+                                        if (isoCode !== 'EN') {
+                                            const foundLangCode = Object.keys(languages).find(code => 
+                                                languages[code].iso === isoCode
+                                            );
+                                            if (foundLangCode) {
+                                                langCode = foundLangCode;
+                                                langConfig = languages[foundLangCode];
+                                            }
+                                        }
+                                        
+                                        // Remove the language marker from content
+                                        const cleanContent = pageText.replace(/^=== [A-Z]+ ===\s*/, '').trim();
+                                        const filename = `${langConfig.iso.toLowerCase()}.txt`;
+                                        const ssmlContent = generateSSML(cleanContent, langCode);
+                                        
+                                        zip.file(filename, ssmlContent);
+                                        extractedPages.push(langConfig.iso);
+                                        console.log(`Added file: ${filename}`);
+                                    } else {
+                                        // First page without marker = English
+                                        if (i === 0) {
+                                            const processedContent = processTextForTranslation(pageText, 'en');
+                                            const filename = `${englishConfig.iso.toLowerCase()}.txt`;
+                                            const ssmlContent = generateSSML(processedContent, 'en');
+                                            
+                                            zip.file(filename, ssmlContent);
+                                            extractedPages.push(englishConfig.iso);
+                                            console.log(`Added English file: ${filename}`);
+                                        }
+                                    }
                                 }
                             }
+                        } else {
+                            throw new Error('fallback_to_text_analysis');
+                        }
+                        
+                    } catch (error) {
+                        console.log('Page-by-page analysis failed, falling back to text analysis:', error.message);
+                        
+                        // Fallback: analyze full document text
+                        const body = context.document.body;
+                        body.load("text");
+                        await context.sync();
+                        
+                        const fullText = body.text;
+                        console.log('Full document text length:', fullText.length);
+                        console.log('Document content preview:', fullText.substring(0, 300));
+                        
+                        // Check if document has language markers
+                        const hasLanguageMarkers = /=== [A-Z]+ ===/g.test(fullText);
+                        console.log('Document has language markers:', hasLanguageMarkers);
+                        
+                        if (hasLanguageMarkers) {
+                            // Split by language markers
+                            const sections = fullText.split(/(?=\n\n=== [A-Z]+ ===\n\n|\n=== [A-Z]+ ===\n|^=== [A-Z]+ ===)/);
+                            console.log('Found sections:', sections.length);
+                            
+                            for (let i = 0; i < sections.length; i++) {
+                                const section = sections[i].trim();
+                                if (!section) continue;
+                                
+                                console.log(`Processing section ${i + 1}:`, section.substring(0, 100));
+                                
+                                // Check for language marker
+                                const langMatch = section.match(/^=== ([A-Z]+) ===/);
+                                if (langMatch) {
+                                    const isoCode = langMatch[1];
+                                    const content = section.replace(/^=== [A-Z]+ ===\s*/, '').trim();
+                                    
+                                    let langCode = 'en';
+                                    let langConfig = englishConfig;
+                                    
+                                    if (isoCode !== 'EN') {
+                                        const foundLangCode = Object.keys(languages).find(code => 
+                                            languages[code].iso === isoCode
+                                        );
+                                        if (foundLangCode) {
+                                            langCode = foundLangCode;
+                                            langConfig = languages[foundLangCode];
+                                        }
+                                    }
+                                    
+                                    if (content) {
+                                        const filename = `${langConfig.iso.toLowerCase()}.txt`;
+                                        const ssmlContent = generateSSML(content, langCode);
+                                        
+                                        zip.file(filename, ssmlContent);
+                                        extractedPages.push(langConfig.iso);
+                                        console.log(`Added file: ${filename} for language ${isoCode}`);
+                                    }
+                                } else if (i === 0) {
+                                    // First section without marker = English
+                                    const processedContent = processTextForTranslation(section, 'en');
+                                    const filename = `${englishConfig.iso.toLowerCase()}.txt`;
+                                    const ssmlContent = generateSSML(processedContent, 'en');
+                                    
+                                    zip.file(filename, ssmlContent);
+                                    extractedPages.push(englishConfig.iso);
+                                    console.log(`Added English file: ${filename}`);
+                                }
+                            }
+                        } else {
+                            // No language markers found - treat as single English document
+                            console.log('No language markers found, treating entire document as English');
+                            const processedContent = processTextForTranslation(fullText, 'en');
+                            const filename = `${englishConfig.iso.toLowerCase()}.txt`;
+                            const ssmlContent = generateSSML(processedContent, 'en');
+                            
+                            zip.file(filename, ssmlContent);
+                            extractedPages.push(englishConfig.iso);
+                            console.log(`Added single English file: ${filename}`);
                         }
                     }
                     
-                    console.log('Total pages found:', pages.length);
+                    console.log('Total files to zip:', extractedPages.length);
+                    console.log('Files:', extractedPages);
                     
-                    if (pages.length === 0) {
-                        throw new Error('No content found to export. Please ensure the document has content with language markers like === FR ===');
-                    }
-                    
-                    // Generate SSML files and add to ZIP
-                    for (const page of pages) {
-                        const ssmlContent = generateSSML(page.content, page.langCode);
-                        const config = page.langCode === 'en' ? englishConfig : languages[page.langCode];
-                        const filename = `${config.iso.toLowerCase()}.txt`;
-                        
-                        console.log(`Creating file: ${filename}`);
-                        console.log(`SSML content preview:`, ssmlContent.substring(0, 150));
-                        
-                        zip.file(filename, ssmlContent);
-                        extractedPages.push(config.iso);
+                    if (extractedPages.length === 0) {
+                        throw new Error('No content found to export. The document appears to be empty.');
                     }
                     
                     // Generate and download ZIP file
-                    console.log('Generating ZIP with files:', extractedPages);
-                    const zipBlob = await zip.generateAsync({ type: 'blob' });
+                    console.log('Generating ZIP...');
+                    const zipBlob = await zip.generateAsync({ 
+                        type: 'blob',
+                        compression: "DEFLATE",
+                        compressionOptions: { level: 6 }
+                    });
+                    
+                    console.log('ZIP generated, size:', zipBlob.size, 'bytes');
                     
                     // Create download link
                     const url = URL.createObjectURL(zipBlob);
@@ -654,10 +739,14 @@
                     a.style.display = 'none';
                     document.body.appendChild(a);
                     a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
                     
-                    showStatus(`✅ SSML ZIP exported! ${pages.length} files created: ${extractedPages.join(', ')}`, 'success');
+                    // Clean up
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                    
+                    showStatus(`✅ SSML ZIP exported! ${extractedPages.length} files: ${extractedPages.join(', ')}`, 'success');
                 });
                 
             } catch (error) {
