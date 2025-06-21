@@ -478,17 +478,8 @@
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&apos;');
                 
-                // Add language announcement in English (except for the first English section)
-                if (i > 0) {
-                    const langConfig = section.langCode === 'en' ? englishVoice : languages[section.langCode];
-                    const announcement = `Now in ${langConfig.name}`;
-                    
-                    if (englishVoice.prosody) {
-                        ssmlContent += `<voice name="${englishVoice.voice}"><prosody ${englishVoice.prosody}>${announcement}</prosody></voice><break time="1s"/>`;
-                    } else {
-                        ssmlContent += `<voice name="${englishVoice.voice}">${announcement}</voice><break time="1s"/>`;
-                    }
-                }
+                // Add line break before each language section
+                ssmlContent += '\n';
                 
                 // Add the content in the target language
                 const config = section.langCode === 'en' ? englishVoice : languages[section.langCode];
@@ -498,10 +489,8 @@
                     ssmlContent += `<voice name="${config.voice}">${cleanText}</voice>`;
                 }
                 
-                // Add break between sections
-                if (i < documentSections.length - 1) {
-                    ssmlContent += '<break time="2s"/>';
-                }
+                // Add line break after each language section
+                ssmlContent += '\n';
             }
             
             ssmlContent += '</speak>';
@@ -600,25 +589,80 @@
                 let documentName = 'document_ssml'; // Default name
 
                 await Word.run(async (context) => {
-                    // Get document name
+                    // Get document name - try multiple methods
                     try {
-                        const properties = context.document.properties;
-                        properties.load("title");
+                        // Method 1: Try to get the document's file name
+                        const file = context.document.properties;
+                        file.load("title");
                         await context.sync();
                         
-                        if (properties.title && properties.title.trim()) {
-                            documentName = properties.title.trim();
+                        if (file.title && file.title.trim()) {
+                            documentName = file.title.trim();
                             console.log('Document title found:', documentName);
                         } else {
-                            // If no title, try to get from filename (Word Online might not have this)
-                            console.log('No document title found, using default name');
+                            // Method 2: Try to get from URL if available (Word Online)
+                            if (window.location && window.location.href) {
+                                const urlParams = new URLSearchParams(window.location.search);
+                                const fileName = urlParams.get('file') || urlParams.get('filename');
+                                if (fileName) {
+                                    documentName = fileName.replace(/\.[^/.]+$/, ""); // Remove extension
+                                    console.log('Document name from URL:', documentName);
+                                }
+                            }
+                            
+                            // Method 3: Try Office context if available
+                            if (!documentName || documentName === 'document_ssml') {
+                                try {
+                                    if (Office && Office.context && Office.context.document && Office.context.document.url) {
+                                        const url = Office.context.document.url;
+                                        const urlParts = url.split('/');
+                                        const fileNameWithExt = urlParts[urlParts.length - 1];
+                                        if (fileNameWithExt && fileNameWithExt !== '') {
+                                            documentName = fileNameWithExt.replace(/\.[^/.]+$/, ""); // Remove extension
+                                            console.log('Document name from Office context:', documentName);
+                                        }
+                                    }
+                                } catch (officeError) {
+                                    console.log('Office context method failed:', officeError.message);
+                                }
+                            }
+                            
+                            // Method 4: Try document settings
+                            if (!documentName || documentName === 'document_ssml') {
+                                try {
+                                    const settings = context.document.settings;
+                                    settings.load();
+                                    await context.sync();
+                                    console.log('Checking document settings for name...');
+                                } catch (settingsError) {
+                                    console.log('Settings method failed:', settingsError.message);
+                                }
+                            }
                         }
                         
-                        // Clean filename: remove invalid characters
-                        documentName = documentName.replace(/[<>:"/\\|?*]/g, '_');
+                        // Clean filename: remove invalid characters and decode if needed
+                        documentName = documentName
+                            .replace(/[<>:"/\\|?*]/g, '_')
+                            .replace(/%20/g, ' ') // Replace URL encoded spaces
+                            .trim();
+                        
+                        // If still default, try to extract from document content
+                        if (documentName === 'document_ssml' || !documentName) {
+                            const body = context.document.body;
+                            body.load("text");
+                            await context.sync();
+                            
+                            const firstLine = body.text.split('\n')[0].trim();
+                            if (firstLine && firstLine.length > 0 && firstLine.length < 100) {
+                                // Use first line as filename if it's reasonable length
+                                documentName = firstLine.substring(0, 50).replace(/[<>:"/\\|?*]/g, '_');
+                                console.log('Using first line as filename:', documentName);
+                            }
+                        }
                         
                     } catch (error) {
                         console.log('Could not get document name, using default:', error.message);
+                        documentName = 'document_ssml';
                     }
                     
                     // Get all content from the document
